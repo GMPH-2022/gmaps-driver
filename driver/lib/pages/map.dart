@@ -44,11 +44,14 @@ class _MapState extends State<Map> {
         }
       };
 
-      driver.doc('ZEgtVLroHxrTHGLcNnud').update(data).then((value) => Fluttertoast.showToast(msg: 'updated'));
+      driver
+          .doc('ZEgtVLroHxrTHGLcNnud')
+          .update(data)
+          .then((value) => Fluttertoast.showToast(msg: 'updated'));
 
       setState(() {
         _currentPosition = position;
-        speed = ((position.speed*18)/5).toStringAsFixed(2);
+        speed = ((position.speed * 18) / 5).toStringAsFixed(2);
         _getAddressFromLatLng(_currentPosition!);
       });
     });
@@ -72,25 +75,43 @@ class _MapState extends State<Map> {
     });
   }
 
+  TextEditingController _searchController = TextEditingController();
+  String? hospitalName = 'Max Healthcare';
+  String? time = '34mins';
+  String? destination;
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Driver\'s view'),
+      ),
       body: Column(
         children: [
-          Container(
-            height: 500,
-            child: GoogleMap(
-              myLocationEnabled: true,
-              markers: {
-                Marker(
-                  markerId: MarkerId('1'),
-                  position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                  infoWindow: InfoWindow(
-                    title: 'Current Location',
-                    snippet: 'Speed: $speed',
+          Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 15.0, vertical: 5.0),
+                  child: TextFormField(
+                    controller: _searchController,
+                    onChanged: (value) {},
                   ),
                 ),
-              },
+              ),
+              IconButton(
+                onPressed: () {
+                  _searchController.clear();
+                },
+                icon: const Icon(Icons.clear),
+              ),
+            ],
+          ),
+          Expanded(
+            child: GoogleMap(
+              myLocationEnabled: true,
               onMapCreated: _onMapCreated,
               initialCameraPosition: CameraPosition(
                 target: LatLng(
@@ -100,22 +121,34 @@ class _MapState extends State<Map> {
               ),
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                  'LAT: ${_currentPosition?.latitude.toStringAsFixed(6) ?? ""}'),
-              Text(
-                  'LNG: ${_currentPosition?.longitude.toStringAsFixed(6) ?? ""}'),
-              Text(
-                  'ACCURACY: ${_currentPosition?.accuracy.toStringAsFixed(3) ?? ""}'),
-              Text(
-                  'ALTI: ${_currentPosition?.altitude.toStringAsFixed(4) ?? ""}'),
-              Text('SPEED: $speed kmph'),
-              Text(
-                  'speedAccuracy: ${_currentPosition?.speedAccuracy.toStringAsFixed(4) ?? ""}'),
-              Text('ADDRESS: ${_currentAddress ?? ""}'),
 
+          Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                          'Hospital: $hospitalName'),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                          'Time: $time'),
+                    ),
+                  ),
+                ],
+              ),
+              Row(),
+              TextButton(
+                onPressed: () {
+                  Fluttertoast.showToast(msg: 'Navigation started');
+                },
+                child: const Text('Start'),
+              )
             ],
           ),
         ],
