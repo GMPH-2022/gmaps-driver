@@ -1,7 +1,17 @@
 import 'package:driver/pages/home.dart';
-import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() {
+import 'package:flutter/material.dart';
+import 'package:driver/pages/map.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // initialize firebase app
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+
   runApp(Driver());
 }
 
@@ -11,9 +21,9 @@ class Driver extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       themeMode: ThemeMode.system,
-      initialRoute: '/',
+      initialRoute: '/map',
       routes: <String, WidgetBuilder>{
-        "/" : (BuildContext ctx) => Home()
+        "/map" : (BuildContext ctx) => Map(),
       },
     );
   }
