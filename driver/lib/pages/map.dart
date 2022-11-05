@@ -1,9 +1,13 @@
+import 'dart:ffi';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:uuid/uuid.dart';
+import 'addressSearch.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class Map extends StatefulWidget {
@@ -75,12 +79,13 @@ class _MapState extends State<Map> {
     });
   }
 
-  TextEditingController _searchController = TextEditingController();
   String? hospitalName = 'Max Healthcare';
   String? time = '34mins';
   String? destination;
 
+  TextEditingController _searchController = TextEditingController();
 
+ 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,6 +103,12 @@ class _MapState extends State<Map> {
                   child: TextFormField(
                     controller: _searchController,
                     onChanged: (value) {},
+                    decoration: const InputDecoration(
+                      hintText: "Enter Location",
+                    ),
+                    onTap: () async{
+                      showSearch(context: context, delegate: AddressSearch());
+                    },
                   ),
                 ),
               ),

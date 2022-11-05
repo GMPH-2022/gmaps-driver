@@ -1,6 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-
 import 'package:flutter/material.dart';
 import 'package:driver/pages/map.dart';
 
@@ -9,7 +8,6 @@ void main() async {
 
   // initialize firebase app
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
 
   runApp(Driver());
 }
