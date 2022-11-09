@@ -84,6 +84,7 @@ class _MapState extends State<Map> {
   String? destination;
 
   TextEditingController _searchController = TextEditingController();
+  final List<String> entries = <String>['India', 'Africa', 'Japan'];
 
  
   @override
@@ -92,75 +93,111 @@ class _MapState extends State<Map> {
       appBar: AppBar(
         title: const Text('Driver\'s view'),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 15.0, vertical: 5.0),
-                  child: TextFormField(
-                    controller: _searchController,
-                    onChanged: (value) {},
-                    decoration: const InputDecoration(
-                      hintText: "Enter Location",
-                    ),
-                    onTap: () async{
-                      showSearch(context: context, delegate: AddressSearch());
-                    },
-                  ),
+          Container(
+            child: Expanded(
+              child: GoogleMap(
+                myLocationEnabled: true,
+                onMapCreated: _onMapCreated,
+                initialCameraPosition: CameraPosition(
+                  target: LatLng(
+                      _currentPosition!.latitude, _currentPosition!.longitude),
+                  zoom: 16.0,
+                  // tilt: 3
                 ),
-              ),
-              IconButton(
-                onPressed: () {
-                  _searchController.clear();
-                },
-                icon: const Icon(Icons.clear),
-              ),
-            ],
-          ),
-          Expanded(
-            child: GoogleMap(
-              myLocationEnabled: true,
-              onMapCreated: _onMapCreated,
-              initialCameraPosition: CameraPosition(
-                target: LatLng(
-                    _currentPosition!.latitude, _currentPosition!.longitude),
-                zoom: 16.0,
-                // tilt: 3
               ),
             ),
           ),
-
-          Column(
-            children: [
-              Row(
+          Positioned(
+            // fill position details here
+            top: 0,
+            right: 0,
+            left: 0,
+            height: 300,
+            child: Container(
+              child: 
+              Column(
                 children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                          'Hospital: $hospitalName'),
-                    ),
+                  Row(
+                    children: [
+                        Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 15.0, vertical: 5.0),
+                          child: TextFormField(
+                            controller: _searchController,
+                            onChanged: (value) {},
+                            decoration: const InputDecoration(
+                              hintText: "Enter Location",
+                            ),
+                            onTap: () async{
+                            },
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                        },
+                        icon: const Icon(Icons.clear),
+                      ),
+                    ],
                   ),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                          'Time: $time'),
+                    child: SizedBox(
+                      child: ListView.builder(
+                        itemCount: entries.length,
+                        itemBuilder: ((context, index) {
+                            return Container(
+                              height: 50,
+                              child: Center(child: Text('Entry ${entries[index]}')),
+                            );
+                          }
+                         )
+                        ),
                     ),
                   ),
                 ],
               ),
-              Row(),
-              TextButton(
-                onPressed: () {
-                  Fluttertoast.showToast(msg: 'Navigation started');
-                },
-                child: const Text('Start'),
-              )
-            ],
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            width: 250,
+            height: 100,
+            child: Container(
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                              'Hospital: $hospitalName'),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                              'Time: $time'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  Row(),
+                  TextButton(
+                    onPressed: () {
+                      Fluttertoast.showToast(msg: 'Navigation started');
+                    },
+                    child: const Text('Start'),
+                  )
+                ],
+              ),
+            ),
           ),
         ],
       ),
