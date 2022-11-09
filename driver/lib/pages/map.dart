@@ -48,10 +48,12 @@ class _MapState extends State<Map> {
         }
       };
 
-      driver
-          .doc('ZEgtVLroHxrTHGLcNnud')
-          .update(data)
-          .then((value) => Fluttertoast.showToast(msg: 'updated'));
+      // ignore: todo
+      //TODO: Uncomment this
+      // driver
+      //     .doc('ZEgtVLroHxrTHGLcNnud')
+      //     .update(data)
+      //     .then((value) => Fluttertoast.showToast(msg: 'updated'));
 
       setState(() {
         _currentPosition = position;
@@ -84,9 +86,9 @@ class _MapState extends State<Map> {
   String? destination;
 
   TextEditingController _searchController = TextEditingController();
-  final List<String> entries = <String>['India', 'Africa', 'Japan'];
+  //when List is zero, it wont render the Listview.builder
+  final List<String> entries = []; //['India', 'Africa', 'Japan'];
 
- 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,106 +97,107 @@ class _MapState extends State<Map> {
       ),
       body: Stack(
         children: [
-          Container(
-            child: Expanded(
-              child: GoogleMap(
-                myLocationEnabled: true,
-                onMapCreated: _onMapCreated,
-                initialCameraPosition: CameraPosition(
-                  target: LatLng(
-                      _currentPosition!.latitude, _currentPosition!.longitude),
-                  zoom: 16.0,
-                  // tilt: 3
+          Column(
+            children: [
+              Expanded(
+                child: GoogleMap(
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: false,
+                  onMapCreated: _onMapCreated,
+                  initialCameraPosition: CameraPosition(
+                    target: LatLng(_currentPosition!.latitude,
+                        _currentPosition!.longitude),
+                    zoom: 16.0,
+                    // tilt: 3
+                  ),
                 ),
               ),
-            ),
+              Container(
+                color: Colors.white,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text('Hospital: $hospitalName'),
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text('Time: $time'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(),
+                    TextButton(
+                      onPressed: () {
+                        Fluttertoast.showToast(msg: 'Navigation started');
+                      },
+                      child: const Text('Start'),
+                    )
+                  ],
+                ),
+              ),
+            ],
           ),
           Positioned(
-            // fill position details here
             top: 0,
             right: 0,
             left: 0,
-            height: 300,
             child: Container(
-              child: 
-              Column(
+              color: Colors.white,
+              child: Column(
                 children: [
-                  Row(
-                    children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0, vertical: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
                         Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 15.0, vertical: 5.0),
-                          child: TextFormField(
+                          child: TextField(
                             controller: _searchController,
-                            onChanged: (value) {},
+                            onChanged: (value) {
+                              // API calls from here
+                              // getPlaces(value);
+                            },
                             decoration: const InputDecoration(
                               hintText: "Enter Location",
                             ),
-                            onTap: () async{
+                            onTap: () async {
+                              Fluttertoast.showToast(msg: 'click');
                             },
                           ),
                         ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          _searchController.clear();
-                        },
-                        icon: const Icon(Icons.clear),
-                      ),
-                    ],
-                  ),
-                  Expanded(
-                    child: SizedBox(
-                      child: ListView.builder(
-                        itemCount: entries.length,
-                        itemBuilder: ((context, index) {
-                            return Container(
-                              height: 50,
-                              child: Center(child: Text('Entry ${entries[index]}')),
-                            );
-                          }
-                         )
+                        IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                          icon: const Icon(Icons.clear),
                         ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            width: 250,
-            height: 100,
-            child: Container(
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                              'Hospital: $hospitalName'),
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                              'Time: $time'),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(
+                    height: 10,
                   ),
-                  
-                  Row(),
-                  TextButton(
-                    onPressed: () {
-                      Fluttertoast.showToast(msg: 'Navigation started');
-                    },
-                    child: const Text('Start'),
-                  )
+                  entries.length != 0 ? Container(
+                    color: Colors.white,
+                    height: 150,
+                    child: ListView.builder(
+                      itemCount: entries.length,
+                      itemBuilder: (context, index) => ListTile(
+                        title: Text(entries[index].toString()),
+                        onTap: () {
+                          _searchController.text = entries[index];
+                        },
+                      ),
+                    ),
+                  ) : Center(),
                 ],
               ),
             ),
