@@ -21,9 +21,36 @@ class Map extends StatefulWidget {
 }
 
 class _MapState extends State<Map> {
+  String apiKey = 'AIzaSyAeWGCO4e-w8xR_OohqJwJu45hDk2VqM9Q';
+
   late GoogleMapController mapController;
-  bool keepCurrentCenter = true;
   final LatLng _center = const LatLng(28.704, 77.1025);
+
+  Client client = Client();
+
+  bool destinationSet = false;
+  bool navigationStarted = false;
+
+  String? sourceAddress;
+  String? currentAddress;
+  String? destinationAddress;
+  String? destinationId;
+  Position? currentPosition;
+  Position? destinationPosition;
+
+  String timeLeft = '';
+  String distanceLeft = '';
+
+  // define markers for googlemap
+  Set<Marker> markers = {};
+  Set<Polyline> polylines = {};
+
+  final TextEditingController _sourceController = TextEditingController();
+  final TextEditingController _destinationController = TextEditingController();
+
+  //when List is zero, it wont render the Listview.builder
+  List<String> results = [];
+  List<String> resultsPlaceId = [];
 
   String? _currentAddress;
   Position? _currentPosition = Position(
@@ -37,6 +64,50 @@ class _MapState extends State<Map> {
       speedAccuracy: 0);
   String speed = '0.0';
 
+  void createRoute(String encondedPoly) {
+    polylines.add(Polyline(
+        polylineId: PolylineId('1'),
+        width: 6,
+        points: _convertToLatLng(_decodePoly(encondedPoly)),
+        color: Colors.blue));
+  }
+
+  List _decodePoly(String poly) {
+    var list = poly.codeUnits;
+    List lList = [];
+    int index = 0;
+    int len = poly.length;
+    int c = 0;
+    do {
+      var shift = 0;
+      int result = 0;
+      do {
+        c = list[index] - 63;
+        result |= (c & 0x1F) << (shift * 5);
+        index++;
+        shift++;
+      } while (c >= 32);
+      if (result & 1 == 1) {
+        result = ~result;
+      }
+      var result1 = (result >> 1) * 0.00001;
+      lList.add(result1);
+    } while (index < len);
+    for (var i = 2; i < lList.length; i++) lList[i] += lList[i - 2];
+    // print(lList.toString());
+    return lList;
+  }
+
+  List<LatLng> _convertToLatLng(List points) {
+    List<LatLng> result = <LatLng>[];
+    for (int i = 0; i < points.length; i++) {
+      if (i % 2 != 0) {
+        result.add(LatLng(points[i - 1], points[i]));
+      }
+    }
+    return result;
+  }
+
   @override
   void dispose() {
     mapController.dispose();
@@ -47,7 +118,51 @@ class _MapState extends State<Map> {
     FirebaseFirestore firestore = FirebaseFirestore.instance;
     CollectionReference driver = firestore.collection('driver');
 
-    Geolocator.getPositionStream().listen((position) {
+    Geolocator.getPositionStream().listen((position) async {
+      // 1. keep changing the current address until destination is searched
+      // 2. keep changing distanceLeft and timeLeft once destination is searched, take currentPosition into account
+
+      currentPosition = position;
+      speed = ((position.speed * 18) / 5).toStringAsFixed(2);
+
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(position.latitude, position.longitude);
+      Placemark place = placemarks[0];
+
+      currentAddress = "${place.name}, ${place.locality}";
+
+      if (destinationSet == false) {
+        mapController.animateCamera(CameraUpdate.newLatLngZoom(
+            LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            15.5));
+
+        sourceAddress = currentAddress;
+
+        setState(() {
+          _sourceController.text = sourceAddress!;
+        });
+      } else if (destinationSet && !navigationStarted) {}
+
+      if (navigationStarted) {
+        var cameraPosition = CameraPosition(
+            target: LatLng(position.latitude, position.longitude),
+            zoom: 18,
+            bearing: position.heading);
+        mapController
+            .animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
+
+        String query =
+            'https://maps.googleapis.com/maps/api/distancematrix/json?origins=$currentAddress&destinations=${destinationAddress}&units=metric&key=$apiKey';
+        Response response = await client.get(Uri.parse(query));
+        var data = jsonDecode(response.body);
+        setState(() {
+          timeLeft = data['rows'][0]['elements'][0]['duration']['text'];
+          distanceLeft = data['rows'][0]['elements'][0]['distance']['text'];
+        });
+      }
+    });
+
+    Geolocator.getPositionStream().listen((position) async {
       var data = {
         'live': {
           'latitude': position.latitude,
@@ -64,19 +179,8 @@ class _MapState extends State<Map> {
       //     .update(data)
       //     .then((value) => Fluttertoast.showToast(msg: 'updated'));
 
-      sourceLatLng = LatLng(position.latitude, position.longitude);
-      setState(() {
-        _currentPosition = position;
-        speed = ((position.speed * 18) / 5).toStringAsFixed(2);
-        _getAddressFromLatLng(_currentPosition!);
-
-        //Keeps current position at the center
-        if (keepCurrentCenter) {
-          mapController.animateCamera(CameraUpdate.newLatLngZoom(
-              LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-              15));
-        }
-      });
+      _currentPosition = position;
+      speed = ((position.speed * 18) / 5).toStringAsFixed(2);
     });
   }
 
@@ -84,124 +188,108 @@ class _MapState extends State<Map> {
     mapController = controller;
   }
 
-  Future<void> _getAddressFromLatLng(Position position) async {
-    await placemarkFromCoordinates(
-            _currentPosition!.latitude, _currentPosition!.longitude)
-        .then((List<Placemark> placemarks) {
-      Placemark place = placemarks[0];
-      setState(() {
-        _currentAddress =
-            '${place.street}, ${place.subLocality}, ${place.subAdministrativeArea}, ${place.postalCode}';
-        _currrentController.text = _currentAddress!;
-      });
-    }).catchError((e) {
-      debugPrint(e.toString());
-    });
+  Future<String> _getCurrAddr(Position position) async {
+    List<Placemark> placemarks =
+        await placemarkFromCoordinates(position.latitude, position.longitude);
+    Placemark place = placemarks[0];
+    return place.name!;
   }
-
-  String hospitalName = '';
-  String time = '';
-  String destinationName = '';
-  String destinationId = '';
-  late LatLng sourceLatLng;
-  late LatLng destinationLatLng;
-
-  final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _currrentController = TextEditingController();
-
-  //when List is zero, it wont render the Listview.builder
-  List<String> results = [];
-  List<String> resultsPlaceId = [];
 
   @override
   Widget build(BuildContext context) {
-    PlaceApiProvider placeApiProvider = PlaceApiProvider(const Uuid().v4());
+    var sessionToken = const Uuid().v4();
+    PlaceApiProvider placeApiProvider = PlaceApiProvider(sessionToken);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Driver\'s view'),
       ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    results.clear();
-                    setState(() {});
-                  },
-                  child: GoogleMap(
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    onMapCreated: _onMapCreated,
-                    initialCameraPosition: CameraPosition(
-                      target: _center,
-                      // target: LatLng(_currentPosition!.latitude,
-                      //     _currentPosition!.longitude),
-                      zoom: 16.0,
-                      // tilt: 3
+          Padding(
+            padding: const EdgeInsets.only(top: 110.0),
+            child: Column(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      results.clear();
+                      setState(() {});
+                    },
+                    child: GoogleMap(
+                      polylines: Set<Polyline>.of(polylines),
+                      markers: Set<Marker>.of(markers),
+                      myLocationEnabled: true,
+                      onMapCreated: _onMapCreated,
+                      initialCameraPosition: CameraPosition(
+                        target: _center,
+                        zoom: 16.0,
+                        // tilt: 3
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Container(
-                color: Colors.white,
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text('Hospital: $hospitalName'),
+                Container(
+                  color: Colors.white,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text('Distance: $distanceLeft'),
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text('Time: $time'),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text('Time: $timeLeft'),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    Row(),
-                    TextButton(
-                      onPressed: () {
-                        Fluttertoast.showToast(msg: 'Navigation started');
-                        keepCurrentCenter = false;
-                        void sendRequest() async {
-                          LatLng destination = destinationLatLng;
-                          Response response =
-                              await placeApiProvider.getRouteCoordinates(
-                                  sourceLatLng, destinationLatLng);
-                          String route = jsonDecode(response.body)["routes"][0]
-                              ["overview_polyline"]["points"];
-                          LatLng southwest = LatLng(
-                              jsonDecode(response.body)["routes"][0]["bounds"]
-                                  ["southwest"]["lat"],
-                              jsonDecode(response.body)["routes"][0]["bounds"]
-                                  ["southwest"]["lng"]);
-                          LatLng northeast = LatLng(
-                              jsonDecode(response.body)["routes"][0]["bounds"]
-                                  ["northeast"]["lat"],
-                              jsonDecode(response.body)["routes"][0]["bounds"]
-                                  ["northeast"]["lng"]);
-                          placeApiProvider.createRoute(route); //, sourceLatLng.toString());
-                          mapController.animateCamera(
-                              CameraUpdate.newLatLngBounds(
-                                  LatLngBounds(
-                                      southwest: southwest,
-                                      northeast: northeast),
-                                  10.0));
-                        }
-                      },
-                      child: const Text('Start'),
-                    )
-                  ],
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: navigationStarted
+                                ? Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: Text('Speed is $speed'),
+                                    ),
+                                  )
+                                : Center(),
+                          )
+                        ],
+                      ),
+                      navigationStarted
+                          ? TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  navigationStarted = false;
+                                });
+                                Fluttertoast.showToast(
+                                    msg: 'Navigation stopped');
+                              },
+                              child: const Text('Stop'),
+                            )
+                          : TextButton(
+                              onPressed: () {
+                                if (!navigationStarted) {
+                                  navigationStarted = true;
+                                  setState(() {});
+                                }
+                                Fluttertoast.showToast(
+                                    msg: 'Navigation started');
+                              },
+                              child: const Text('Start'),
+                            ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           Positioned(
             top: 0,
@@ -215,7 +303,7 @@ class _MapState extends State<Map> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8.0, vertical: 3),
                     child: TextField(
-                      controller: _currrentController,
+                      controller: _sourceController,
                       enabled: false,
                     ),
                   ),
@@ -227,7 +315,8 @@ class _MapState extends State<Map> {
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: _searchController,
+                            controller: _destinationController,
+                            enabled: !navigationStarted,
                             onChanged: (value) async {
                               if (value == '') {
                                 setState(() {
@@ -246,15 +335,15 @@ class _MapState extends State<Map> {
                               hintText: "Enter Location",
                             ),
                             onTap: () async {
-                              var res = await placeApiProvider
-                                  .fetchSuggestions(_searchController.text);
+                              var res = await placeApiProvider.fetchSuggestions(
+                                  _destinationController.text);
                               results = res.map((e) => e.description).toList();
                             },
                           ),
                         ),
                         IconButton(
                           onPressed: () {
-                            _searchController.clear();
+                            _destinationController.clear();
                             FocusManager.instance.primaryFocus?.unfocus();
                             // setState(() {
                             results.clear();
@@ -283,28 +372,77 @@ class _MapState extends State<Map> {
                                 ],
                               ),
                               onTap: () async {
-                                _searchController.text =
-                                    results[index].toString();
+                                //this wont reset the camera to current location
+                                destinationSet = true;
+
+                                //this hides the keyboard
                                 FocusManager.instance.primaryFocus?.unfocus();
+
+                                //sets the textfield to the selected location
+                                destinationAddress = results[index].toString();
+                                _destinationController.text =
+                                    destinationAddress!;
+
+                                markers.clear();
                                 destinationId = resultsPlaceId[index];
-                                Fluttertoast.showToast(msg: destinationId);
-                                if (await placeApiProvider
-                                        .getLatLng(destinationId) ==
-                                    null) {
-                                  Fluttertoast.showToast(
-                                      msg: 'No location found');
-                                  results.clear();
-                                  return;
-                                }
-                                destinationLatLng = await placeApiProvider.getLatLng(destinationId);
-                                debugPrint('destinationLatLng' + destinationLatLng.toString());
+                                String query =
+                                    'https://maps.googleapis.com/maps/api/place/details/json?placeid=$destinationId&key=$apiKey&sessiontoken=$sessionToken';
+
+                                Response response =
+                                    await client.get(Uri.parse(query));
+                                var data = jsonDecode(response.body);
+                                var destinationLatLng = LatLng(
+                                    data['result']['geometry']['location']
+                                        ['lat'],
+                                    data['result']['geometry']['location']
+                                        ['lng']);
+                                markers.add(Marker(
+                                  markerId: MarkerId(destinationId!),
+                                  position: destinationLatLng,
+                                  infoWindow: InfoWindow(
+                                    title: results[index].toString(),
+                                  ),
+                                ));
+
+                                query =
+                                    "https://maps.googleapis.com/maps/api/directions/json?origin=${currentPosition!.latitude},${currentPosition!.longitude}&destination=${destinationLatLng.latitude},${destinationLatLng.longitude}&key=$apiKey";
+                                response = await client.get(Uri.parse(query));
+                                data = jsonDecode(response.body);
+
+                                LatLngBounds bounds = LatLngBounds(
+                                  southwest: LatLng(
+                                      data['routes'][0]['bounds']['southwest']
+                                          ['lat'],
+                                      data['routes'][0]['bounds']['southwest']
+                                          ['lng']),
+                                  northeast: LatLng(
+                                      data['routes'][0]['bounds']['northeast']
+                                          ['lat'],
+                                      data['routes'][0]['bounds']['northeast']
+                                          ['lng']),
+                                );
+                                mapController.animateCamera(
+                                    CameraUpdate.newLatLngBounds(bounds, 50));
+
+                                //show polylines on map
+                                createRoute(data['routes'][0]
+                                    ['overview_polyline']['points']);
+
+                                query =
+                                    'https://maps.googleapis.com/maps/api/distancematrix/json?origins=$sourceAddress&destinations=${_destinationController.text.toString()}&units=metric&key=AIzaSyAeWGCO4e-w8xR_OohqJwJu45hDk2VqM9Q';
+                                response = await client.get(Uri.parse(query));
+                                data = jsonDecode(response.body);
+                                setState(() {
+                                  timeLeft = data['rows'][0]['elements'][0]
+                                      ['duration']['text'];
+                                  distanceLeft = data['rows'][0]['elements'][0]
+                                      ['distance']['text'];
+                                });
 
                                 results.clear();
+                                
+
                                 setState(() {});
-                                // Fluttertoast.showToast(
-                                //     msg: 'destinationId' + destinationId);
-                                // debugPrint('destinationId'+destinationId);
-                                // debugPrint('destinationLatLng' + destinationLatLng.toString());
                               },
                             ),
                           ),
