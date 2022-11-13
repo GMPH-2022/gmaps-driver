@@ -294,7 +294,7 @@ class _MapState extends State<Map> {
                             )
                           : TextButton(
                               onPressed: () {
-                                if (!navigationStarted) {
+                                if (!navigationStarted && destinationSet) {
                                   navigationStarted = true;
                                   setState(() {});
                                 }
@@ -327,7 +327,7 @@ class _MapState extends State<Map> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8.0, vertical: 3),
+                        horizontal: 8.0, vertical: 2),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -372,9 +372,9 @@ class _MapState extends State<Map> {
                       ],
                     ),
                   ),
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  // const SizedBox(
+                  //   height: 10,
+                  // ),
                   results.length != 0
                       ? Container(
                           color: Colors.white,
