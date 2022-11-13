@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ffi';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:driver/locationServices.dart';
 import 'package:driver/pages/place_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'addressSearch.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -40,6 +42,8 @@ class _MapState extends State<Map> {
 
   String timeLeft = '';
   String distanceLeft = '';
+
+  List<int> gridIndex = [];
 
   // define markers for googlemap
   Set<Marker> markers = {};
@@ -116,11 +120,14 @@ class _MapState extends State<Map> {
   @override
   void initState() {
     FirebaseFirestore firestore = FirebaseFirestore.instance;
-    CollectionReference driver = firestore.collection('driver');
+    CollectionReference driver = firestore.collection('grid');
 
     Geolocator.getPositionStream().listen((position) async {
       // 1. keep changing the current address until destination is searched
       // 2. keep changing distanceLeft and timeLeft once destination is searched, take currentPosition into account
+
+      gridIndex =
+          LocationServices().gridIndex(position.latitude, position.longitude);
 
       currentPosition = position;
       speed = ((position.speed * 18) / 5).toStringAsFixed(2);
@@ -163,24 +170,35 @@ class _MapState extends State<Map> {
     });
 
     Geolocator.getPositionStream().listen((position) async {
-      var data = {
-        'live': {
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'speed': position.speed,
-          'timestamp': position.timestamp,
+      int timestamp = position.timestamp!.millisecondsSinceEpoch;
+      if (navigationStarted) {
+        var data = {
+          'live': {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'speed': position.speed,
+            'timestamp': timestamp,
+          }
+        };
+
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        String? driverId = prefs.getString('driverId');
+        // Fluttertoast.showToast(msg: driverId!);
+        var batch = firestore.batch();
+        for (var i = gridIndex[0] - 1; i <= gridIndex[0] + 1; i++) {
+          for (var j = gridIndex[1] - 1; j <= gridIndex[1] + 1; j++) {
+            batch.set(
+                driver.doc(i.toString()).collection(j.toString()).doc(driverId),
+                data);
+          }
         }
-      };
-
-      // ignore: todo
-      //TODO: Uncomment this
-      // driver
-      //     .doc('ZEgtVLroHxrTHGLcNnud')
-      //     .update(data)
-      //     .then((value) => Fluttertoast.showToast(msg: 'updated'));
-
-      _currentPosition = position;
-      speed = ((position.speed * 18) / 5).toStringAsFixed(2);
+        batch.commit().then((value) => Fluttertoast.showToast(msg: 'done'));
+        // var ij = driver
+        //     .doc(gridIndex[0].toString())
+        //     .collection(gridIndex[1].toString())
+        //     .doc(driverId);
+        // batch.set(ij, data);
+      }
     });
   }
 
@@ -256,7 +274,7 @@ class _MapState extends State<Map> {
                                 ? Center(
                                     child: Padding(
                                       padding: EdgeInsets.all(8.0),
-                                      child: Text('Speed is $speed'),
+                                      child: Text('i,j is $gridIndex'),
                                     ),
                                   )
                                 : Center(),
@@ -440,7 +458,6 @@ class _MapState extends State<Map> {
                                 });
 
                                 results.clear();
-                                
 
                                 setState(() {});
                               },
