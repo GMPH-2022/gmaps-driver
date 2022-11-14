@@ -190,16 +190,13 @@ class _MapState extends State<Map> {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         String driverId = prefs.getString('driverId')!;
         // Fluttertoast.showToast(msg: driverId!);
-        var batch = firestore.batch();
+        // var batch = firestore.batch();
         for (var i = gridIndex[0] - 1; i <= gridIndex[0] + 1; i++) {
           for (var j = gridIndex[1] - 1; j <= gridIndex[1] + 1; j++) {
-            // batch.set(driver.doc(i.toString()).collection(j.toString()).doc(driverId),data);
-            // var toUpload = {'$driverId' : data};
             driver.doc(i.toString()).collection(j.toString()).doc(driverId).set(data);
-
           }
         }
-        batch.commit();
+        // batch.commit();
       }
     });
   }
@@ -364,10 +361,10 @@ class _MapState extends State<Map> {
                         IconButton(
                           onPressed: () {
                             _destinationController.clear();
+                            destinationSet = false;
+                            polylines.clear();
                             FocusManager.instance.primaryFocus?.unfocus();
-                            // setState(() {
                             results.clear();
-                            // });
                           },
                           icon: const Icon(Icons.clear),
                         ),
