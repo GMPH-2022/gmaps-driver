@@ -132,24 +132,6 @@ class _MapState extends State<Map> {
       currentPosition = position;
       speed = ((position.speed * 18) / 5).toStringAsFixed(2);
 
-      List<Placemark> placemarks =
-          await placemarkFromCoordinates(position.latitude, position.longitude);
-      Placemark place = placemarks[0];
-
-      currentAddress = "${place.name}, ${place.locality}";
-
-      if (destinationSet == false) {
-        mapController.animateCamera(CameraUpdate.newLatLngZoom(
-            LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-            15.5));
-
-        sourceAddress = currentAddress;
-
-        setState(() {
-          _sourceController.text = sourceAddress!;
-        });
-      } else if (destinationSet && !navigationStarted) {}
-
       if (navigationStarted) {
         var cameraPosition = CameraPosition(
             target: LatLng(position.latitude, position.longitude),
@@ -157,6 +139,12 @@ class _MapState extends State<Map> {
             bearing: position.heading);
         mapController
             .animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
+
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude, position.longitude);
+        Placemark place = placemarks[0];
+
+        currentAddress = "${place.name}, ${place.locality}";
 
         String query =
             'https://maps.googleapis.com/maps/api/distancematrix/json?origins=$currentAddress&destinations=${destinationAddress}&units=metric&key=$apiKey';
@@ -167,6 +155,24 @@ class _MapState extends State<Map> {
           distanceLeft = data['rows'][0]['elements'][0]['distance']['text'];
         });
       }
+
+      if (destinationSet == false) {
+        mapController.animateCamera(CameraUpdate.newLatLngZoom(
+            LatLng(currentPosition!.latitude, currentPosition!.longitude),
+            15.5));
+
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude, position.longitude);
+        Placemark place = placemarks[0];
+
+        currentAddress = "${place.name}, ${place.locality}";
+
+        sourceAddress = currentAddress;
+
+        setState(() {
+          _sourceController.text = sourceAddress!;
+        });
+      } else if (destinationSet && !navigationStarted) {}
     });
 
     Geolocator.getPositionStream().listen((position) async {
@@ -182,22 +188,18 @@ class _MapState extends State<Map> {
         };
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
-        String? driverId = prefs.getString('driverId');
+        String driverId = prefs.getString('driverId')!;
         // Fluttertoast.showToast(msg: driverId!);
         var batch = firestore.batch();
         for (var i = gridIndex[0] - 1; i <= gridIndex[0] + 1; i++) {
           for (var j = gridIndex[1] - 1; j <= gridIndex[1] + 1; j++) {
-            batch.set(
-                driver.doc(i.toString()).collection(j.toString()).doc(driverId),
-                data);
+            // batch.set(driver.doc(i.toString()).collection(j.toString()).doc(driverId),data);
+            // var toUpload = {'$driverId' : data};
+            driver.doc(i.toString()).collection(j.toString()).doc(driverId).set(data);
+
           }
         }
-        batch.commit().then((value) => Fluttertoast.showToast(msg: 'done'));
-        // var ij = driver
-        //     .doc(gridIndex[0].toString())
-        //     .collection(gridIndex[1].toString())
-        //     .doc(driverId);
-        // batch.set(ij, data);
+        batch.commit();
       }
     });
   }
@@ -422,6 +424,10 @@ class _MapState extends State<Map> {
                                   ),
                                 ));
 
+                                results.clear();
+
+                                setState(() {});
+
                                 query =
                                     "https://maps.googleapis.com/maps/api/directions/json?origin=${currentPosition!.latitude},${currentPosition!.longitude}&destination=${destinationLatLng.latitude},${destinationLatLng.longitude}&key=$apiKey";
                                 response = await client.get(Uri.parse(query));
@@ -457,9 +463,7 @@ class _MapState extends State<Map> {
                                       ['distance']['text'];
                                 });
 
-                                results.clear();
 
-                                setState(() {});
                               },
                             ),
                           ),
